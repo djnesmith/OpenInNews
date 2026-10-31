@@ -24,8 +24,9 @@ final class StatusModel {
     var extensionEnabled: Bool?
     var status: ExtensionStatus?
     var syncedAt: Date?
-    /// Sites set to the button only: Safari's copy or the app's, whichever changed last.
+    /// Sites set to the button only, from the merged settings.
     var manualSites: [String] = []
+    var syncWithICloud = SharedStatus.syncWithICloud
 
     func refresh() async {
         #if os(macOS)
@@ -38,20 +39,23 @@ final class StatusModel {
         let shared = SharedStatus.load()
         status = shared?.status
         syncedAt = shared?.syncedAt
-        manualSites = currentManual().filter(\.value).map(\.key).sorted()
-    }
-
-    private func currentManual() -> [String: Bool] {
-        let fromSafari = (sites: status?.manual ?? [:], at: status?.manualAt ?? 0)
-        guard let fromApp = SharedStatus.loadManual(), fromApp.at > fromSafari.at else { return fromSafari.sites }
-        return fromApp.sites
+        show(SharedStatus.mergeSettings())
     }
 
     func setManual(_ site: String, _ on: Bool) {
-        var sites = currentManual()
-        sites[site] = on ? true : nil
-        SharedStatus.saveManual(sites)
-        manualSites = sites.filter(\.value).map(\.key).sorted()
+        show(SharedStatus.mergeSettings(["manual:\(site)": .init(value: on, at: Date().timeIntervalSince1970 * 1000)]))
+    }
+
+    /// Off: this device stops reading and writing iCloud. Back on: merges, newest per key.
+    func setSyncWithICloud(_ on: Bool) {
+        SharedStatus.syncWithICloud = on
+        syncWithICloud = on
+        show(SharedStatus.mergeSettings())
+    }
+
+    private func show(_ settings: [String: SettingsSync.Entry]) {
+        manualSites = settings.filter { $0.key.hasPrefix("manual:") && $0.value.value }
+            .map { String($0.key.dropFirst("manual:".count)) }.sorted()
     }
 }
 
@@ -132,6 +136,7 @@ struct StatusView: View {
                 if SharedStatus.isAvailable {
                     manualSection
                 }
+                cloudSection
                 if !allGreen {
                     setupSection
                 }
@@ -147,6 +152,9 @@ struct StatusView: View {
         }
         .task(id: scenePhase) {
             if scenePhase == .active { await model.refresh() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSUbiquitousKeyValueStore.didChangeExternallyNotification)) { _ in
+            Task { await model.refresh() }
         }
     }
 
@@ -243,6 +251,16 @@ struct StatusView: View {
             if let syncedAt = model.syncedAt {
                 Text("Reported by Safari \(syncedAt, format: .relative(presentation: .named)). Add or remove sites from the extension’s menu in the address bar.")
             }
+        }
+    }
+
+    private var cloudSection: some View {
+        Section {
+            Toggle("Sync settings with iCloud", isOn: Binding(get: { model.syncWithICloud }, set: { model.setSyncWithICloud($0) }))
+        } header: {
+            Text("iCloud")
+        } footer: {
+            Text("Shares sites, automatic opening and button-only sites with your other devices; the newest change wins. This switch is per device: off, this device keeps its own settings.")
         }
     }
 

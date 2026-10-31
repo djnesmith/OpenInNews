@@ -42,7 +42,7 @@ function load(owlResolve, { openPopup, timers = true, contextMenus = true, menuE
   // Timers run 100 times faster, so waits in background.js stay short here.
   const ctx = vm.createContext({ browser, console, URL, Date, Promise, Object, Map, Boolean, String, JSON, Number, setTimeout: (f, ms) => timers && setTimeout(f, ms / 100) });
   ctx.self = ctx;
-  for (const f of ['sites.js', 'autoopen.js', 'icon.js', 'background.js']) vm.runInContext(fs.readFileSync(R + f, 'utf8'), ctx);
+  for (const f of ['sites.js', 'autoopen.js', 'sync.js', 'icon.js', 'background.js']) vm.runInContext(fs.readFileSync(R + f, 'utf8'), ctx);
   ctx.owlResolve = owlResolve;
   ctx.owlLastLookup = {};
   const settle = () => new Promise((r) => setTimeout(r, 30));

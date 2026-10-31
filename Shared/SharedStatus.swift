@@ -9,8 +9,6 @@ struct ExtensionStatus: Codable {
     var seen: [String: Double]  // site -> when the extension last ran there (ms since 1970)
     var active: Double          // when the extension last ran anywhere (ms since 1970)
     var lastLookup: Lookup?
-    var manual: [String: Bool]?  // site -> true: button only, never opens News by itself
-    var manualAt: Double?        // when manual last changed in Safari (ms since 1970)
 
     struct Lookup: Codable {
         var ranged: Bool        // fetched part of the index rather than the whole bucket file
@@ -41,7 +39,8 @@ enum SharedStatus {
     }
     private static let statusKey = "extensionStatus"
     private static let syncedKey = "syncedAt"
-    private static let manualKey = "manualSites"
+    private static let settingsKey = "settings"
+    private static let iCloudKey = "syncWithICloud"
 
     static func save(_ json: Any) {
         guard let data = try? JSONSerialization.data(withJSONObject: json),
@@ -50,17 +49,26 @@ enum SharedStatus {
         defaults?.set(Date(), forKey: syncedKey)
     }
 
-    /// Button-only sites as last edited in the app, with when (ms since 1970).
-    /// The extension takes them when they're newer than its own copy.
-    static func loadManual() -> (sites: [String: Bool], at: Double)? {
-        guard let stored = defaults?.dictionary(forKey: manualKey),
-              let sites = stored["manual"] as? [String: Bool],
-              let at = stored["manualAt"] as? Double else { return nil }
-        return (sites, at)
+    /// Whether this device syncs settings through iCloud. Kept per device, never synced. On by default.
+    static var syncWithICloud: Bool {
+        get { defaults?.object(forKey: iCloudKey) as? Bool ?? true }
+        set { defaults?.set(newValue, forKey: iCloudKey) }
     }
 
-    static func saveManual(_ sites: [String: Bool]) {
-        defaults?.set(["manual": sites, "manualAt": Date().timeIntervalSince1970 * 1000], forKey: manualKey)
+    /// The settings as this device last merged them (see SettingsSync).
+    static var settings: [String: SettingsSync.Entry] {
+        SettingsSync.decode(defaults?.dictionary(forKey: settingsKey))
+    }
+
+    /// Merges `changes` with this device's settings and, when sync is on, with iCloud,
+    /// newest per key. Saves and returns the result.
+    @discardableResult
+    static func mergeSettings(_ changes: [String: SettingsSync.Entry] = [:]) -> [String: SettingsSync.Entry] {
+        let merged = SettingsSync.sync(SettingsSync.newest(settings, changes), enabled: syncWithICloud) {
+            NSUbiquitousKeyValueStore.default
+        }
+        defaults?.set(SettingsSync.encode(merged), forKey: settingsKey)
+        return merged
     }
 
     static func load() -> (status: ExtensionStatus, syncedAt: Date)? {

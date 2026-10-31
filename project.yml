@@ -70,6 +70,7 @@ targets:
       path: Config/App-iOS.entitlements
       properties:
         com.apple.security.application-groups: [group.org.ajdn.OpenInNews]
+        com.apple.developer.ubiquity-kvstore-identifier: CHJ32A2B4N.org.ajdn.AutoOpenInNews
     dependencies:
       - target: OpenInNewsExtension
 
@@ -92,6 +93,7 @@ targets:
       path: Config/Extension-iOS.entitlements
       properties:
         com.apple.security.application-groups: [group.org.ajdn.OpenInNews]
+        com.apple.developer.ubiquity-kvstore-identifier: CHJ32A2B4N.org.ajdn.AutoOpenInNews
 
   OpenInNewsMac:
     templates: [App]
@@ -102,11 +104,14 @@ targets:
         <<: *appInfo
         LSApplicationCategoryType: public.app-category.news
     # On macOS a team-prefixed group needs no provisioning profile.
+    # iCloud key-value storage (shared by app and extension on every device)
+    # does, so builds need Xcode's Apple account.
     entitlements:
       path: Config/App-macOS.entitlements
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.application-groups: [CHJ32A2B4N.org.ajdn.OpenInNews]
+        com.apple.developer.ubiquity-kvstore-identifier: CHJ32A2B4N.org.ajdn.AutoOpenInNews
     dependencies:
       - target: OpenInNewsMacExtension
 
@@ -122,3 +127,4 @@ targets:
         com.apple.security.app-sandbox: true
         com.apple.security.network.client: true # OWLResolver's lookups
         com.apple.security.application-groups: [CHJ32A2B4N.org.ajdn.OpenInNews]
+        com.apple.developer.ubiquity-kvstore-identifier: CHJ32A2B4N.org.ajdn.AutoOpenInNews

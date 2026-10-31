@@ -12,13 +12,13 @@ const APP_ID = 'org.ajdn.AutoOpenInNews';
 const IS_SAFARI = browser.runtime.getURL('').startsWith('safari-web-extension:');
 
 async function settings() {
-  const stored = await browser.storage.local.get(['sites', 'auto', 'opened', 'manual', 'manualAt']);
+  const stored = await browser.storage.local.get(['sites', 'auto', 'opened', 'manual', 'stamps']);
   return {
     sites: stored.sites ?? Object.fromEntries(self.SEED_SITES.map((s) => [s, true])),
     auto: stored.auto ?? true,
     opened: stored.opened ?? {},
     manual: stored.manual ?? {}, // site -> true: show the pill, never open News by itself
-    manualAt: stored.manualAt ?? 0
+    stamps: stored.stamps ?? {} // setting key (see sync.js) -> when it last changed here
   };
 }
 
@@ -84,24 +84,34 @@ function lookup(url) {
  */
 async function syncToApp() {
   if (!IS_SAFARI) return;
-  const { sites, auto, manual, manualAt } = await settings();
+  const current = await settings();
+  const { sites, auto } = current;
   const { seen = {}, active = 0, lastLookup = null } = await browser.storage.local.get(['seen', 'active', 'lastLookup']);
-  const reply = await browser.runtime.sendNativeMessage(APP_ID, { action: 'sync', state: { sites, auto, seen, active, lastLookup, manual, manualAt } });
+  const reply = await browser.runtime.sendNativeMessage(APP_ID, { action: 'sync', state: { sites, auto, seen, active, lastLookup }, entries: settingsEntries(current) });
   await adoptFromApp(reply);
 }
 
 /*
- * The app can edit the button-only sites too. Whichever side changed them
- * last wins; the app's copy arrives with any native reply.
+ * The app and the other devices (through iCloud) can change settings too. The
+ * native handler merges them key by key and replies with the result; we take
+ * every key that changed after ours.
  */
 async function adoptFromApp(reply) {
-  if (!(reply?.manualAt > (await settings()).manualAt)) return;
-  await browser.storage.local.set({ manual: reply.manual ?? {}, manualAt: reply.manualAt });
+  const next = applyEntries(await settings(), reply?.entries);
+  if (next) await browser.storage.local.set(next);
 }
 
 async function pullFromApp() {
   if (!IS_SAFARI) return;
-  await adoptFromApp(await browser.runtime.sendNativeMessage(APP_ID, { action: 'pull' }).catch(() => null));
+  const entries = settingsEntries(await settings());
+  await adoptFromApp(await browser.runtime.sendNativeMessage(APP_ID, { action: 'pull', entries }).catch(() => null));
+}
+
+/* Saves one changed setting with its time, then tells the app. */
+async function changeSetting(key, patch) {
+  const { stamps } = await settings();
+  await browser.storage.local.set({ ...patch, stamps: { ...stamps, [key]: Date.now() } });
+  await syncToApp().catch(() => {});
 }
 
 /* Records that the extension ran (on an enabled site, if given), reporting it when stale. */
@@ -192,22 +202,16 @@ async function siteStatus(host) {
 
 async function setSite(site, on) {
   const { sites } = await settings();
-  await browser.storage.local.set({ sites: { ...sites, [site]: on } });
-  await syncToApp().catch(() => {});
+  await changeSetting(`site:${site}`, { sites: { ...sites, [site]: on } });
 }
 
 async function setSiteAuto(site, on) {
   const { manual } = await settings();
-  const next = { ...manual };
-  if (on) delete next[site];
-  else next[site] = true;
-  await browser.storage.local.set({ manual: next, manualAt: Date.now() });
-  await syncToApp().catch(() => {});
+  await changeSetting(`manual:${site}`, { manual: { ...manual, [site]: !on } });
 }
 
 async function setAuto(on) {
-  await browser.storage.local.set({ auto: on });
-  await syncToApp().catch(() => {});
+  await changeSetting('auto', { auto: on });
 }
 
 const handlers = {

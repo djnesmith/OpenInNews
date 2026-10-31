@@ -38,7 +38,7 @@ The seed list only applies until a site is first toggled in the menu; after that
 
 ## 3. Auto-open per site
 
-A site can be set to "button only": it stays on for lookups and the Open in News pill, but never opens News by itself. A hit opens News only when the site is on, global "Open automatically" is on, and the site isn't button only (`autoOpens` in `autoopen.js`). Set it from the popup ("Auto-open on this site") or the app's "Button only" list (add and remove, Mac and iOS). Stored as `manual` + `manualAt` in extension storage and as `manualSites` in the app group; whichever side changed last wins. Safari takes the app's copy on the next article hit or popup open, via the native `pull` action and the `sync` reply.
+A site can be set to "button only": it stays on for lookups and the Open in News pill, but never opens News by itself. A hit opens News only when the site is on, global "Open automatically" is on, and the site isn't button only (`autoOpens` in `autoopen.js`). Set it from the popup ("Auto-open on this site") or the app's "Button only" list (add and remove, Mac and iOS). Stored as `manual` in extension storage; app edits reach Safari through the per-key settings merge in #6.
 
 - Commits: the one that adds this entry (`git log -S autoOpens --oneline`)
 - Files: `Extension/Resources/autoopen.js`, `background.js`, `popup.html`, `popup.js`, `manifest.json`, `Chrome/sw.js`, `Extension/SafariWebExtensionHandler.swift`, `Shared/SharedStatus.swift`, `App/OpenInNewsApp.swift`, `test/autoopen.test.js` (fork-only)
@@ -67,6 +67,14 @@ On an article page News has, when it won't open by itself ("Open automatically" 
 - Files: `Extension/Resources/background.js`, `popup.js`, `manifest.json`, `Chrome/manifest.json`, `test/fake-browser.js`, `test/background-toolbar.test.js`, `test/background-icon.test.js` (fork-only)
 - Check: `node --test test/`. By hand: turn "Open automatically" off, open an article News has, click the toolbar button: News opens. Right-click it, choose Settings…: the popup (or a settings tab) shows. On the site's homepage a click shows the popup.
 
-## Pending: settings synced with iCloud
+## 6. Settings synced with iCloud
 
-On branch `kv-probe`, not on main until it is proven across devices: sites, "Open automatically" and button-only sites synced through iCloud key-value storage, newest change per key wins, with a per-device switch. See FORK-FEATURES.md on that branch.
+Sites on/off, global "Open automatically" and button-only sites sync across Mac, iPhone and iPad through iCloud key-value storage (`com.apple.developer.ubiquity-kvstore-identifier` = `CHJ32A2B4N.org.ajdn.AutoOpenInNews` on all four targets). Each setting is its own key (`auto`, `site:<host>`, `manual:<host>`) with the time it last changed; the newest wins per key, so changes to different sites on different devices both survive. Untouched defaults have time 0.
+
+- Flow: `background.js` sends its keys (`settingsEntries` in `sync.js`) with every native `sync` and `pull`. The native handler merges them with the app group copy and iCloud (`SharedStatus.mergeSettings`, `SettingsSync.sync`), saves, and replies; `applyEntries` takes back every newer key. Safari pulls on each article hit and popup open. The app merges on launch, on each edit, and on `NSUbiquitousKeyValueStore.didChangeExternallyNotification`.
+- "Sync settings with iCloud" switch in the app, per device (app group key `syncWithICloud`, never synced), on by default. Off: neither the app nor the extension opens the iCloud store; the device keeps its own settings. Back on: merges, newest per key.
+- Keep Safari's own Share Across Devices off (upstream README); it is unrelated. Safari's per-site website access stays per device.
+- Builds need Xcode's Apple account (iCloud needs a provisioning profile on Mac too). Checked on 2026-10-31 between the Mac and an iPhone: a change on one showed up on the other.
+- Commits: the one that adds this entry (`git log -S SettingsSync --oneline`)
+- Files: `project.yml`, `Shared/SettingsSync.swift`, `Shared/SharedStatus.swift`, `Extension/SafariWebExtensionHandler.swift`, `App/OpenInNewsApp.swift`, `Extension/Resources/sync.js`, `background.js`, `manifest.json`, `Chrome/sw.js`, `test/sync.test.js`, `test/SettingsSyncTests.swift` (fork-only)
+- Check: `node --test test/` and `swiftc -parse-as-library Shared/SettingsSync.swift test/SettingsSyncTests.swift -o build/sync-tests && build/sync-tests`. By hand: untick a site on the Mac; within a minute or so its iPhone app shows the change, and Safari on the iPhone applies it at the next article. Turn the switch off on the iPhone, change a setting there, turn it back on; the change reaches the Mac.

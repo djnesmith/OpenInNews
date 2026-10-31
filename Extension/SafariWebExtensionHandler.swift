@@ -28,9 +28,9 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
             if let state = message["state"] {
                 SharedStatus.save(state)
             }
-            Self.reply(context, Self.appManual())
+            Self.reply(context, Self.mergeSettings(message))
         case "pull":
-            Self.reply(context, Self.appManual())
+            Self.reply(context, Self.mergeSettings(message))
         case "open":
             Self.reply(context, ["opened": open(articleID: message["id"] as? String)])
         default:
@@ -38,10 +38,10 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
         }
     }
 
-    /// The app's button-only sites; background.js keeps them if they're newer.
-    private static func appManual() -> [String: Any] {
-        guard let manual = SharedStatus.loadManual() else { return [:] }
-        return ["manual": manual.sites, "manualAt": manual.at]
+    /// Merges Safari's settings with the app's and iCloud's; background.js takes
+    /// back every key that's newer than its own.
+    private static func mergeSettings(_ message: [String: Any]) -> [String: Any] {
+        ["entries": SettingsSync.encode(SharedStatus.mergeSettings(SettingsSync.decode(message["entries"])))]
     }
 
     private static func reply(_ context: NSExtensionContext, _ message: [String: Any]) {
