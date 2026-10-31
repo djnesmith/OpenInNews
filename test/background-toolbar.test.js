@@ -101,6 +101,15 @@ test('Settings… opens a settings tab after a wait when the popup never shows',
   assert.deepStrictEqual(b.created, ['chrome-extension://x/popup.html?tab=1']);
 });
 
+test('after a settings tab, a one-click page stays one-click', async () => {
+  const b = load(found, { openPopup: async () => { throw new Error('unsupported'); } });
+  await b.message({ action: 'setAuto', on: false });
+  await b.visit(1, ARTICLE);
+  await b.menuClick(1);
+  assert.deepStrictEqual(b.created, ['chrome-extension://x/popup.html?tab=1']);
+  assert.strictEqual(b.popups[1], '');
+});
+
 test('other menu items are ignored', async () => {
   const b = load(found);
   await b.visit(1, ARTICLE);
@@ -120,4 +129,14 @@ test('a click when the article cannot be found now shows the settings', async ()
   assert.strictEqual(b.popups[1], 'popup.html');
   assert.strictEqual(b.popupsOpened(), 1);
   assert.strictEqual(b.navigated[1], undefined);
+});
+
+test('a menu setup error stays inside the menu setup; the background loads and clicks work', async () => {
+  for (const menuError of [new Error('create'), 'sync']) {
+    const b = load(found, { menuError });
+    await b.message({ action: 'setAuto', on: false });
+    await b.visit(1, ARTICLE);
+    assert.strictEqual(await b.click(1), null);
+    assert.strictEqual(b.navigated[1], 'applenewss:///A1', String(menuError));
+  }
 });

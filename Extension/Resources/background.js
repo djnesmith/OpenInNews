@@ -167,6 +167,15 @@ async function checkPage(urlString, tabId) {
   return { id, openNow };
 }
 
+/* Whether this page should be one-click, decided as checkPage does: an article News has that won't open by itself. */
+async function opensOnClick(urlString) {
+  const url = new URL(urlString);
+  const current = await settings();
+  const site = siteFor(url.hostname, current.sites);
+  if (!site || !current.sites[site] || !hasArticleSlug(url) || autoOpens(current, site)) return false;
+  return Boolean(await lookup(urlString));
+}
+
 /* Opens News from the native handler, which only does so on the Mac. */
 async function openArticle(id) {
   if (!IS_SAFARI) return { opened: false };
@@ -229,8 +238,8 @@ browser.tabs.onUpdated.addListener((tabId, change) => {
 
 /*
  * Shows the settings popup for a tab. If the popup doesn't report in shortly,
- * the settings open in a new tab instead. With `oneClick`, a tab whose popup
- * checkPage removed gets it removed again once the popup has shown.
+ * the settings open in a new tab instead. With `oneClick`, a one-click page
+ * gets its popup removed again once the popup has shown.
  */
 const SETTINGS_WAIT_MS = 1500;
 let settingsShown = () => {};
@@ -240,11 +249,10 @@ async function showSettings(tab, { oneClick = false } = {}) {
   const shown = new Promise((r) => { resolve = settingsShown = r; });
   setTimeout(() => resolve(false), SETTINGS_WAIT_MS);
   // No await before openPopup: Safari may only open it straight from the click.
-  const before = browser.action.getPopup({ tabId: tab.id }).catch(() => null);
   setTabPopup(tab.id, true).catch(() => {});
   browser.action.openPopup().catch(() => resolve(false));
-  if (!(await shown)) return browser.tabs.create({ url: browser.runtime.getURL(`popup.html?tab=${tab.id}`) });
-  if (oneClick && (await before) === '') await setTabPopup(tab.id, false);
+  if (!(await shown)) await browser.tabs.create({ url: browser.runtime.getURL(`popup.html?tab=${tab.id}`) });
+  if (oneClick && await opensOnClick(tab.url).catch(() => false)) await setTabPopup(tab.id, false);
 }
 
 // Only fires on a tab whose popup checkPage removed.
@@ -257,10 +265,13 @@ browser.action.onClicked.addListener(async (tab) => {
 
 // Safari passes no click modifiers, so the settings sit in the button's right-click
 // menu. iOS has no such menu.
-if (browser.contextMenus) {
-  browser.contextMenus.removeAll().then(() =>
-    browser.contextMenus.create({ id: 'settings', title: 'Settings\u2026', contexts: ['action'] }));
-  browser.contextMenus.onClicked.addListener((info, tab) => {
+// Caught: in Chrome's service worker a throw here would stop the whole script loading.
+try {
+  browser.contextMenus?.removeAll().then(() =>
+    browser.contextMenus.create({ id: 'settings', title: 'Settings\u2026', contexts: ['action'] })).catch((e) => console.error('Settings menu:', e));
+  browser.contextMenus?.onClicked.addListener((info, tab) => {
     if (info.menuItemId === 'settings' && tab) showSettings(tab, { oneClick: true });
   });
+} catch (e) {
+  console.error('Settings menu:', e);
 }

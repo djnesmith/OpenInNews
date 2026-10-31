@@ -8,7 +8,7 @@ const R = `${__dirname}/../Extension/Resources/`;
  * default the popup opens and, like popup.js, reports in. timers: false stops
  * background.js's timers from ever firing.
  */
-function load(owlResolve, { openPopup, timers = true, contextMenus = true } = {}) {
+function load(owlResolve, { openPopup, timers = true, contextMenus = true, menuError } = {}) {
   const tabs = {}, icons = {}, popups = {}, store = {}, navigated = {}, created = [], menus = [];
   let onMessage, onUpdated, onClicked, onMenuClicked, popupsOpened = 0;
   const browser = {
@@ -28,13 +28,13 @@ function load(owlResolve, { openPopup, timers = true, contextMenus = true } = {}
       setIcon: async ({ tabId, path }) => { icons[tabId] = { ...icons[tabId], gray: path[16].includes('gray') }; },
       setTitle: async ({ tabId, title }) => { icons[tabId] = { ...icons[tabId], title }; },
       setPopup: async ({ tabId, popup }) => { popups[tabId] = popup; },
-      getPopup: async ({ tabId }) => popups[tabId] ?? 'popup.html',
       openPopup: async () => { popupsOpened++; await (openPopup ? openPopup() : message({ action: 'popupShown' })); },
       onClicked: { addListener: (f) => { onClicked = f; } }
     },
     contextMenus: {
       removeAll: async () => { menus.length = 0; },
-      create: (item) => { menus.push(item); },
+      ...(menuError === 'sync' && { removeAll: () => { throw new Error('removeAll'); } }),
+      create: (item) => { if (menuError) throw menuError; menus.push(item); },
       onClicked: { addListener: (f) => { onMenuClicked = f; } }
     }
   };
