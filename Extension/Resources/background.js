@@ -68,8 +68,13 @@ async function resolve(url) {
   return id;
 }
 
+/* Hits and misses are kept; a failed lookup is dropped so the next visit tries again. */
 function lookup(url) {
-  if (!lookups.has(url)) lookups.set(url, resolve(url));
+  if (!lookups.has(url)) {
+    const pending = resolve(url);
+    lookups.set(url, pending);
+    pending.then((id) => { if (id === undefined) lookups.delete(url); }, () => lookups.delete(url));
+  }
   return lookups.get(url);
 }
 
