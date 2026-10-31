@@ -8,7 +8,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    DEVELOPMENT_TEAM: UC3Y84QJ83
+    DEVELOPMENT_TEAM: CHJ32A2B4N
     CODE_SIGN_STYLE: Automatic
     MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: "11"
@@ -22,7 +22,7 @@ targetTemplates:
       - path: Shared
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.canopysf.AutoOpenInNews
+        PRODUCT_BUNDLE_IDENTIFIER: org.ajdn.AutoOpenInNews
         PRODUCT_NAME: Open in News
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
   Extension:
@@ -41,7 +41,7 @@ targetTemplates:
         buildPhase: resources
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.canopysf.AutoOpenInNews.Extension
+        PRODUCT_BUNDLE_IDENTIFIER: org.ajdn.AutoOpenInNews.Extension
       # Debug builds send News's own request headers (OWLResolver.swift); Release
       # builds don't unless built with that flag, as scripts/install-mac.sh does.
       configs:
@@ -69,7 +69,7 @@ targets:
     entitlements:
       path: Config/App-iOS.entitlements
       properties:
-        com.apple.security.application-groups: [group.com.canopysf.OpenInNews]
+        com.apple.security.application-groups: [group.org.ajdn.OpenInNews]
     dependencies:
       - target: OpenInNewsExtension
 
@@ -91,7 +91,7 @@ targets:
     entitlements:
       path: Config/Extension-iOS.entitlements
       properties:
-        com.apple.security.application-groups: [group.com.canopysf.OpenInNews]
+        com.apple.security.application-groups: [group.org.ajdn.OpenInNews]
 
   OpenInNewsMac:
     templates: [App]
@@ -106,7 +106,7 @@ targets:
       path: Config/App-macOS.entitlements
       properties:
         com.apple.security.app-sandbox: true
-        com.apple.security.application-groups: [UC3Y84QJ83.com.canopysf.OpenInNews]
+        com.apple.security.application-groups: [CHJ32A2B4N.org.ajdn.OpenInNews]
     dependencies:
       - target: OpenInNewsMacExtension
 
@@ -121,4 +121,4 @@ targets:
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.network.client: true # OWLResolver's lookups
-        com.apple.security.application-groups: [UC3Y84QJ83.com.canopysf.OpenInNews]
+        com.apple.security.application-groups: [CHJ32A2B4N.org.ajdn.OpenInNews]

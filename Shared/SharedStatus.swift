@@ -24,11 +24,11 @@ struct ExtensionStatus: Codable {
 }
 
 enum SharedStatus {
-    static let extensionID = "com.canopysf.AutoOpenInNews.Extension"
+    static let extensionID = "org.ajdn.AutoOpenInNews.Extension"
     #if os(macOS)
-    private static let group = "UC3Y84QJ83.com.canopysf.OpenInNews" // team-prefixed: no profile needed
+    private static let group = "CHJ32A2B4N.org.ajdn.OpenInNews" // team-prefixed: no profile needed
     #else
-    private static let group = "group.com.canopysf.OpenInNews"
+    private static let group = "group.org.ajdn.OpenInNews"
     #endif
     private static let defaults = UserDefaults(suiteName: group)
 
