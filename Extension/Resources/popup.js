@@ -10,13 +10,18 @@ const send = (action, fields = {}) => browser.runtime.sendMessage({ action, ...f
     return;
   }
 
-  const { site, on, auto } = await send('siteStatus', { host: new URL(tab.url).hostname });
+  const { site, on, auto, siteAuto } = await send('siteStatus', { host: new URL(tab.url).hostname });
   $('site').textContent = site;
   $('site-on').checked = on;
   $('auto').checked = auto;
+  $('site-auto').checked = siteAuto;
+  // Only matters when the site is on and automatic opening is on.
+  const showSiteAuto = () => { $('site-auto').disabled = !($('site-on').checked && $('auto').checked); };
+  showSiteAuto();
 
-  $('site-on').onchange = (e) => send('setSite', { site, on: e.target.checked });
-  $('auto').onchange = (e) => send('setAuto', { on: e.target.checked });
+  $('site-on').onchange = (e) => { send('setSite', { site, on: e.target.checked }); showSiteAuto(); };
+  $('auto').onchange = (e) => { send('setAuto', { on: e.target.checked }); showSiteAuto(); };
+  $('site-auto').onchange = (e) => send('setSiteAuto', { site, on: e.target.checked });
 
   $('open').onclick = async () => {
     $('open').disabled = true;

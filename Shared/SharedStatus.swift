@@ -9,6 +9,8 @@ struct ExtensionStatus: Codable {
     var seen: [String: Double]  // site -> when the extension last ran there (ms since 1970)
     var active: Double          // when the extension last ran anywhere (ms since 1970)
     var lastLookup: Lookup?
+    var manual: [String: Bool]?  // site -> true: button only, never opens News by itself
+    var manualAt: Double?        // when manual last changed in Safari (ms since 1970)
 
     struct Lookup: Codable {
         var ranged: Bool        // fetched part of the index rather than the whole bucket file
@@ -39,12 +41,26 @@ enum SharedStatus {
     }
     private static let statusKey = "extensionStatus"
     private static let syncedKey = "syncedAt"
+    private static let manualKey = "manualSites"
 
     static func save(_ json: Any) {
         guard let data = try? JSONSerialization.data(withJSONObject: json),
               (try? JSONDecoder().decode(ExtensionStatus.self, from: data)) != nil else { return }
         defaults?.set(data, forKey: statusKey)
         defaults?.set(Date(), forKey: syncedKey)
+    }
+
+    /// Button-only sites as last edited in the app, with when (ms since 1970).
+    /// The extension takes them when they're newer than its own copy.
+    static func loadManual() -> (sites: [String: Bool], at: Double)? {
+        guard let stored = defaults?.dictionary(forKey: manualKey),
+              let sites = stored["manual"] as? [String: Bool],
+              let at = stored["manualAt"] as? Double else { return nil }
+        return (sites, at)
+    }
+
+    static func saveManual(_ sites: [String: Bool]) {
+        defaults?.set(["manual": sites, "manualAt": Date().timeIntervalSince1970 * 1000], forKey: manualKey)
     }
 
     static func load() -> (status: ExtensionStatus, syncedAt: Date)? {

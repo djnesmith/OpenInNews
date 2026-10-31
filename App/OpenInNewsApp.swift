@@ -24,6 +24,8 @@ final class StatusModel {
     var extensionEnabled: Bool?
     var status: ExtensionStatus?
     var syncedAt: Date?
+    /// Sites set to the button only: Safari's copy or the app's, whichever changed last.
+    var manualSites: [String] = []
 
     func refresh() async {
         #if os(macOS)
@@ -36,6 +38,20 @@ final class StatusModel {
         let shared = SharedStatus.load()
         status = shared?.status
         syncedAt = shared?.syncedAt
+        manualSites = currentManual().filter(\.value).map(\.key).sorted()
+    }
+
+    private func currentManual() -> [String: Bool] {
+        let fromSafari = (sites: status?.manual ?? [:], at: status?.manualAt ?? 0)
+        guard let fromApp = SharedStatus.loadManual(), fromApp.at > fromSafari.at else { return fromSafari.sites }
+        return fromApp.sites
+    }
+
+    func setManual(_ site: String, _ on: Bool) {
+        var sites = currentManual()
+        sites[site] = on ? true : nil
+        SharedStatus.saveManual(sites)
+        manualSites = sites.filter(\.value).map(\.key).sorted()
     }
 }
 
@@ -92,6 +108,7 @@ struct StatusRow<Detail: View>: View {
 
 struct StatusView: View {
     @State private var model = StatusModel()
+    @State private var newManualSite = ""
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -111,6 +128,9 @@ struct StatusView: View {
                 }
                 if let status = model.status {
                     sitesSection(status)
+                }
+                if SharedStatus.isAvailable {
+                    manualSection
                 }
                 if !allGreen {
                     setupSection
@@ -224,6 +244,45 @@ struct StatusView: View {
                 Text("Reported by Safari \(syncedAt, format: .relative(presentation: .named)). Add or remove sites from the extension’s menu in the address bar.")
             }
         }
+    }
+
+    private var manualSection: some View {
+        Section {
+            ForEach(model.manualSites, id: \.self) { site in
+                HStack {
+                    Text(site)
+                    Spacer()
+                    Button("Remove", role: .destructive) { model.setManual(site, false) }
+                }
+            }
+            HStack {
+                TextField("example.com", text: $newManualSite)
+                    .autocorrectionDisabled()
+                #if os(iOS)
+                    .textInputAutocapitalization(.never)
+                    .keyboardType(.URL)
+                #endif
+                    .onSubmit(addManualSite)
+                Button("Add", action: addManualSite)
+                    .disabled(manualSiteToAdd.isEmpty)
+            }
+        } header: {
+            Text("Button only")
+        } footer: {
+            Text("These sites show the Open in News button but never open News by themselves. Safari picks up changes the next time it finds an article.")
+        }
+    }
+
+    /// What the user typed, as a site key: lowercase, no "www.".
+    private var manualSiteToAdd: String {
+        let site = newManualSite.trimmingCharacters(in: .whitespaces).lowercased()
+        return site.hasPrefix("www.") ? String(site.dropFirst(4)) : site
+    }
+
+    private func addManualSite() {
+        guard !manualSiteToAdd.isEmpty else { return }
+        model.setManual(manualSiteToAdd, true)
+        newManualSite = ""
     }
 
     private var allGreen: Bool {
