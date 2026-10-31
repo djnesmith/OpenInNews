@@ -12,11 +12,13 @@ const APP_ID = 'org.ajdn.AutoOpenInNews';
 const IS_SAFARI = browser.runtime.getURL('').startsWith('safari-web-extension:');
 
 async function settings() {
-  const stored = await browser.storage.local.get(['sites', 'auto', 'opened']);
+  const stored = await browser.storage.local.get(['sites', 'auto', 'opened', 'manual', 'manualAt']);
   return {
     sites: stored.sites ?? Object.fromEntries(self.SEED_SITES.map((s) => [s, true])),
     auto: stored.auto ?? true,
-    opened: stored.opened ?? {}
+    opened: stored.opened ?? {},
+    manual: stored.manual ?? {}, // site -> true: show the pill, never open News by itself
+    manualAt: stored.manualAt ?? 0
   };
 }
 
@@ -77,9 +79,24 @@ function lookup(url) {
  */
 async function syncToApp() {
   if (!IS_SAFARI) return;
-  const { sites, auto } = await settings();
+  const { sites, auto, manual, manualAt } = await settings();
   const { seen = {}, active = 0, lastLookup = null } = await browser.storage.local.get(['seen', 'active', 'lastLookup']);
-  await browser.runtime.sendNativeMessage(APP_ID, { action: 'sync', state: { sites, auto, seen, active, lastLookup } });
+  const reply = await browser.runtime.sendNativeMessage(APP_ID, { action: 'sync', state: { sites, auto, seen, active, lastLookup, manual, manualAt } });
+  await adoptFromApp(reply);
+}
+
+/*
+ * The app can edit the button-only sites too. Whichever side changed them
+ * last wins; the app's copy arrives with any native reply.
+ */
+async function adoptFromApp(reply) {
+  if (!(reply?.manualAt > (await settings()).manualAt)) return;
+  await browser.storage.local.set({ manual: reply.manual ?? {}, manualAt: reply.manualAt });
+}
+
+async function pullFromApp() {
+  if (!IS_SAFARI) return;
+  await adoptFromApp(await browser.runtime.sendNativeMessage(APP_ID, { action: 'pull' }).catch(() => null));
 }
 
 /* Records that the extension ran (on an enabled site, if given), reporting it when stale. */
@@ -94,7 +111,7 @@ async function noteActivity(site) {
 
 async function checkPage(urlString) {
   const url = new URL(urlString);
-  const { sites, auto, opened } = await settings();
+  const { sites } = await settings();
   const site = siteFor(url.hostname, sites);
   noteActivity(site && sites[site] ? site : null).catch(() => {});
   if (!site || !sites[site] || !hasArticleSlug(url)) return null;
@@ -102,8 +119,11 @@ async function checkPage(urlString) {
   const id = await lookup(urlString);
   if (!id) return null;
 
+  await pullFromApp();
+  const current = await settings();
+  const { opened } = current;
   const now = Date.now();
-  const openNow = auto && !(now - (opened[urlString] ?? 0) < COOLDOWN_MS);
+  const openNow = autoOpens(current, site) && !(now - (opened[urlString] ?? 0) < COOLDOWN_MS);
   if (openNow) {
     const recent = Object.fromEntries(Object.entries(opened).filter(([, t]) => now - t < COOLDOWN_MS));
     await browser.storage.local.set({ opened: { ...recent, [urlString]: now } });
@@ -119,14 +139,24 @@ async function openArticle(id) {
 }
 
 async function siteStatus(host) {
-  const { sites, auto } = await settings();
+  await pullFromApp();
+  const { sites, auto, manual } = await settings();
   const site = siteFor(host, sites);
-  return { site: site ?? host.replace(/^www\./, ''), on: !!(site && sites[site]), auto };
+  return { site: site ?? host.replace(/^www\./, ''), on: !!(site && sites[site]), auto, siteAuto: !(site && manual[site]) };
 }
 
 async function setSite(site, on) {
   const { sites } = await settings();
   await browser.storage.local.set({ sites: { ...sites, [site]: on } });
+  await syncToApp().catch(() => {});
+}
+
+async function setSiteAuto(site, on) {
+  const { manual } = await settings();
+  const next = { ...manual };
+  if (on) delete next[site];
+  else next[site] = true;
+  await browser.storage.local.set({ manual: next, manualAt: Date.now() });
   await syncToApp().catch(() => {});
 }
 
@@ -141,7 +171,8 @@ const handlers = {
   open: (m) => openArticle(m.id),
   siteStatus: (m) => siteStatus(m.host),
   setSite: (m) => setSite(m.site, m.on),
-  setAuto: (m) => setAuto(m.on)
+  setAuto: (m) => setAuto(m.on),
+  setSiteAuto: (m) => setSiteAuto(m.site, m.on)
 };
 
 // Callback style: Chrome ignores a promise returned from the listener.

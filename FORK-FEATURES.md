@@ -35,3 +35,11 @@ The seed list only applies until a site is first toggled in the menu; after that
 - Commits: the one that adds this entry (`git log -S heraldsun.com --oneline`)
 - Files: `Extension/Resources/sites.js`, `scripts/check-sites.js` (fork-only)
 - Check: `node scripts/check-sites.js newsobserver.com charlotteobserver.com latimes.com` reports most hits per site. heraldsun.com's sitemap lists only sponsored posts, so test it with a `heraldsun.com/news/local/article…html` URL. By hand: open a newsobserver.com article in Safari; News opens it.
+
+## 3. Auto-open per site
+
+A site can be set to "button only": it stays on for lookups and the Open in News pill, but never opens News by itself. A hit opens News only when the site is on, global "Open automatically" is on, and the site isn't button only (`autoOpens` in `autoopen.js`). Set it from the popup ("Auto-open on this site") or the app's "Button only" list (add and remove, Mac and iOS). Stored as `manual` + `manualAt` in extension storage and as `manualSites` in the app group; whichever side changed last wins. Safari takes the app's copy on the next article hit or popup open, via the native `pull` action and the `sync` reply.
+
+- Commits: the one that adds this entry (`git log -S autoOpens --oneline`)
+- Files: `Extension/Resources/autoopen.js`, `background.js`, `popup.html`, `popup.js`, `manifest.json`, `Chrome/sw.js`, `Extension/SafariWebExtensionHandler.swift`, `Shared/SharedStatus.swift`, `App/OpenInNewsApp.swift`, `test/autoopen.test.js` (fork-only)
+- Check: `node --test test/`. By hand: on wsj.com untick "Auto-open on this site"; an article shows the pill but News doesn't open. Add a site in the app's Button only list, then open an article there in Safari; News doesn't open.
