@@ -4,7 +4,7 @@ Read this before merging upstream. Every item must still work after the merge.
 
 Branch: `main`. Base: `upstream/main` (narenh/OpenInNews), last merged at `6f50c87` (tag `v1.0`).
 
-No tests. Build a plain Release Mac app (without upstream's `NEWS_CLIENT_HEADERS` flag, which `scripts/install-mac.sh` turns on):
+Tests: `node --test test/`. Build a plain Release Mac app (without upstream's `NEWS_CLIENT_HEADERS` flag, which `scripts/install-mac.sh` turns on):
 
 ```sh
 xcodegen generate
@@ -45,7 +45,7 @@ A site can be set to "button only": it stays on for lookups and the Open in News
 - Check: `node --test test/`. By hand: on wsj.com untick "Auto-open on this site"; an article shows the pill but News doesn't open. Add a site in the app's Button only list, then open an article there in Safari; News doesn't open.
 
 
-## 5. Gray toolbar icon when the article isn't in News
+## 4. Gray toolbar icon when the article isn't in News
 
 On a turned-on site, an article page that Apple's index has no copy of gets a gray, faded toolbar icon with the tooltip "Not in Apple News", for that tab only. Everything else keeps the normal icon: found articles, pages still being looked up, failed lookups, section fronts, and sites that are off (they are never looked up). The icon resets to normal when the tab starts loading a new page.
 
@@ -55,14 +55,18 @@ On a turned-on site, an article page that Apple's index has no copy of gets a gr
 - Files: `Extension/Resources/icon.js`, `icons/gray-*.png`, `background.js`, `manifest.json`, `Chrome/sw.js`, `test/icon.test.js`, `test/background-icon.test.js` (fork-only)
 - Check: `node --test test/`. By hand: turn nytimes.com on in the popup and open an article Apple's index doesn't have; the icon goes gray. (On 2026-10-31 https://www.nytimes.com/2026/10/31/world/middleeast/iran-war-israel-us-elections-trump-netanyahu.html was one.)
 
-## 6. One click on the toolbar button opens the article
+## 5. One click on the toolbar button opens the article
 
 On an article page News has, when it won't open by itself ("Open automatically" off, or the site is button-only), the toolbar button opens the article in News in one click instead of showing the popup. The settings are in the button's right-click menu: "Settings…". If the click can't find the article (lookup failed, or the page changed in place), it shows the settings instead. Every other page keeps the popup: articles News lacks, failed lookups, section fronts, sites that are off, and articles that open automatically.
 
-- `checkPage` removes the tab's popup (`action.setPopup` with `''`), so a click fires `action.onClicked`, which opens the article the way the popup's Open in News button does. A new page load puts the popup back, as with the icon (#5).
+- `checkPage` removes the tab's popup (`action.setPopup` with `''`), so a click fires `action.onClicked`, which opens the article the way the popup's Open in News button does. A new page load puts the popup back, as with the icon (#4).
 - "Settings…" is a `contextMenus` item with `contexts: ['action']` (Safari 15.4+, needs the `contextMenus` permission). Option-click was tried first; Safari passes no click modifiers to `action.onClicked`, so it opened News.
 - `showSettings` puts the tab's popup back and calls `action.openPopup()` (Safari 16+) with no await before it. The popup reports in (`popupShown`); if `openPopup` fails, or nothing reports in within 1.5 s, the settings open in a new tab (`popup.html?tab=<id>`), so the menu never does nothing. Once the popup has shown, a one-click page gets its popup removed again, so the next click still opens News. A click that can't find the article leaves the popup on for that page.
 - Settings for that site are also reachable from the popup on any other page of the site (e.g. its homepage), and the app (button-only sites). iOS Safari has no `contextMenus` (MDN), so the menu is skipped there and the other-page route is the only one.
 - Commits: the ones that add this entry (`git log -S showSettings --oneline`)
 - Files: `Extension/Resources/background.js`, `popup.js`, `manifest.json`, `Chrome/manifest.json`, `test/fake-browser.js`, `test/background-toolbar.test.js`, `test/background-icon.test.js` (fork-only)
 - Check: `node --test test/`. By hand: turn "Open automatically" off, open an article News has, click the toolbar button: News opens. Right-click it, choose Settings…: the popup (or a settings tab) shows. On the site's homepage a click shows the popup.
+
+## Pending: settings synced with iCloud
+
+On branch `kv-probe`, not on main until it is proven across devices: sites, "Open automatically" and button-only sites synced through iCloud key-value storage, newest change per key wins, with a per-device switch. See FORK-FEATURES.md on that branch.
