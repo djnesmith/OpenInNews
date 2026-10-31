@@ -29,10 +29,10 @@ const send = (action, fields = {}) => browser.runtime.sendMessage({ action, ...f
 
   $('open').onclick = async () => {
     $('open').disabled = true;
-    $('note').textContent = 'Looking it up…';
+    $('note').textContent = 'Looking it up\u2026';
     const { id } = await send('lookup', { url: tab.url });
     if (!id) {
-      $('note').textContent = 'Apple News doesn’t have this page.';
+      $('note').textContent = 'Apple News doesn\u2019t have this page.';
       $('open').disabled = false;
       return;
     }

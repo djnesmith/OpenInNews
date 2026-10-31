@@ -259,7 +259,7 @@ browser.action.onClicked.addListener(async (tab) => {
 // menu. iOS has no such menu.
 if (browser.contextMenus) {
   browser.contextMenus.removeAll().then(() =>
-    browser.contextMenus.create({ id: 'settings', title: 'Settings…', contexts: ['action'] }));
+    browser.contextMenus.create({ id: 'settings', title: 'Settings\u2026', contexts: ['action'] }));
   browser.contextMenus.onClicked.addListener((info, tab) => {
     if (info.menuItemId === 'settings' && tab) showSettings(tab, { oneClick: true });
   });
