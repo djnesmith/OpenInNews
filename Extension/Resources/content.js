@@ -40,7 +40,7 @@
       </style>
       <div class="pill">
         <a href="https://apple.news/${id}">Open in News</a>
-        <button aria-label="Dismiss">×</button>
+        <button aria-label="Dismiss">&times;</button>
       </div>`;
     if (!touchDevice) {
       root.querySelector('a').addEventListener('click', (e) => {
