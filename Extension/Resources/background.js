@@ -208,7 +208,8 @@ const handlers = {
   siteStatus: (m) => siteStatus(m.host),
   setSite: (m) => setSite(m.site, m.on),
   setAuto: (m) => setAuto(m.on),
-  setSiteAuto: (m) => setSiteAuto(m.site, m.on)
+  setSiteAuto: (m) => setSiteAuto(m.site, m.on),
+  popupShown: () => settingsShown(true)
 };
 
 // Callback style: Chrome ignores a promise returned from the listener.
@@ -226,19 +227,40 @@ browser.tabs.onUpdated.addListener((tabId, change) => {
   setTabPopup(tabId, true).catch(() => {});
 });
 
-/* Shows the settings popup once; if it can't open, the popup stays for the next click. */
-async function showSettings(tabId) {
-  await setTabPopup(tabId, true);
-  await browser.action.openPopup();
-  await setTabPopup(tabId, false);
+/*
+ * Shows the settings popup for a tab. If the popup doesn't report in shortly,
+ * the settings open in a new tab instead. With `oneClick`, a tab whose popup
+ * checkPage removed gets it removed again once the popup has shown.
+ */
+const SETTINGS_WAIT_MS = 1500;
+let settingsShown = () => {};
+
+async function showSettings(tab, { oneClick = false } = {}) {
+  let resolve;
+  const shown = new Promise((r) => { resolve = settingsShown = r; });
+  setTimeout(() => resolve(false), SETTINGS_WAIT_MS);
+  // No await before openPopup: Safari may only open it straight from the click.
+  const before = browser.action.getPopup({ tabId: tab.id }).catch(() => null);
+  setTabPopup(tab.id, true).catch(() => {});
+  browser.action.openPopup().catch(() => resolve(false));
+  if (!(await shown)) return browser.tabs.create({ url: browser.runtime.getURL(`popup.html?tab=${tab.id}`) });
+  if (oneClick && (await before) === '') await setTabPopup(tab.id, false);
 }
 
-// Only fires on a tab whose popup checkPage removed. Option-click shows the settings.
-browser.action.onClicked.addListener(async (tab, info) => {
-  if (info?.modifiers?.includes('Alt')) return showSettings(tab.id);
+// Only fires on a tab whose popup checkPage removed.
+browser.action.onClicked.addListener(async (tab) => {
   const id = await lookup(tab.url);
   if (id) return openInTab(tab, id);
-  // The article can't be found now (lookup failed, or the page changed): show the settings.
-  await setTabPopup(tab.id, true);
-  await browser.action.openPopup();
+  // The article can't be found now (lookup failed, or the page changed).
+  return showSettings(tab);
 });
+
+// Safari passes no click modifiers, so the settings sit in the button's right-click
+// menu. iOS has no such menu.
+if (browser.contextMenus) {
+  browser.contextMenus.removeAll().then(() =>
+    browser.contextMenus.create({ id: 'settings', title: 'Settings…', contexts: ['action'] }));
+  browser.contextMenus.onClicked.addListener((info, tab) => {
+    if (info.menuItemId === 'settings' && tab) showSettings(tab, { oneClick: true });
+  });
+}

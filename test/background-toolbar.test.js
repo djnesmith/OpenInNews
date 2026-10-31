@@ -46,22 +46,66 @@ test('no one-click if the tab moved on before the lookup finished', async () => 
   assert.strictEqual(b.popups[1], 'popup.html');
 });
 
-test('Option-click shows the settings and keeps one-click', async () => {
+test('the button has a Settings… item in its right-click menu', async () => {
+  const b = load(found);
+  await new Promise((r) => setTimeout(r, 10));
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(b.menus)), [{ id: 'settings', title: 'Settings…', contexts: ['action'] }]);
+});
+
+test('Settings… on a one-click page shows the popup and keeps one-click', async () => {
   const b = load(found);
   await b.message({ action: 'setAuto', on: false });
   await b.visit(1, ARTICLE);
-  await b.click(1, ['Alt']);
+  await b.menuClick(1);
   assert.strictEqual(b.popupsOpened(), 1);
-  assert.strictEqual(b.navigated[1], undefined);
   assert.strictEqual(b.popups[1], '');
+  assert.deepStrictEqual(b.created, []);
 });
 
-test('Option-click where the popup cannot open: the next click shows the settings', async () => {
-  const b = load(found, { openPopup: async () => { throw new Error('unsupported'); } });
-  await b.message({ action: 'setAuto', on: false });
+test('Settings… on any other page leaves its popup on', async () => {
+  const b = load(found);
   await b.visit(1, ARTICLE);
-  assert.match(String(await b.click(1, ['Alt'])), /unsupported/);
+  await b.menuClick(1);
+  assert.strictEqual(b.popupsOpened(), 1);
   assert.strictEqual(b.popups[1], 'popup.html');
+});
+
+test('two quick Settings… requests each get their own answer', async () => {
+  const calls = [];
+  const b = load(found, { openPopup: () => new Promise((resolve, reject) => calls.push({ resolve, reject })), timers: false });
+  await b.visit(1, ARTICLE);
+  await b.visit(2, ARTICLE);
+  await b.menuClick(1);
+  await b.menuClick(2);
+  calls[0].reject(new Error('no popup')); // tab 1's popup fails while tab 2 waits
+  await b.message({ action: 'popupShown' }); // tab 2's popup shows
+  await new Promise((r) => setTimeout(r, 30));
+  assert.deepStrictEqual(b.created, ['chrome-extension://x/popup.html?tab=1']);
+});
+
+test('without context menus (iOS) the background still loads', () => {
+  assert.doesNotThrow(() => load(found, { contextMenus: false }));
+});
+
+test('Settings… opens a settings tab at once when the popup fails', async () => {
+  const b = load(found, { openPopup: async () => { throw new Error('unsupported'); }, timers: false });
+  await b.visit(1, ARTICLE);
+  await b.menuClick(1);
+  assert.deepStrictEqual(b.created, ['chrome-extension://x/popup.html?tab=1']);
+});
+
+test('Settings… opens a settings tab after a wait when the popup never shows', async () => {
+  const b = load(found, { openPopup: async () => {} });
+  await b.visit(1, ARTICLE);
+  await b.menuClick(1);
+  assert.deepStrictEqual(b.created, ['chrome-extension://x/popup.html?tab=1']);
+});
+
+test('other menu items are ignored', async () => {
+  const b = load(found);
+  await b.visit(1, ARTICLE);
+  await b.menuClick(1, 'something-else');
+  assert.strictEqual(b.popupsOpened(), 0);
 });
 
 test('a click when the article cannot be found now shows the settings', async () => {
