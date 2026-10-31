@@ -39,7 +39,7 @@ function hasArticleSlug(url) {
   return (last.match(/-/g) ?? []).length >= 3 || /\d{6,}/.test(last);
 }
 
-const lookups = new Map(); // url -> Promise<article ID | null>
+const lookups = new Map(); // url -> Promise<article ID, null if not in News, undefined if the lookup failed>
 
 /*
  * In Safari the native handler does the lookup (OWLResolver.swift), so the
@@ -60,7 +60,7 @@ async function resolve(url) {
     id = native.found ? native.id : null;
     report = { ranged: native.ranged, native: true, newsHeaders: native.newsHeaders === true, ms: Date.now() - started };
   } else {
-    id = await owlResolve(url).catch(() => null);
+    id = await owlResolve(url).catch(() => undefined);
     report = { ...owlLastLookup, native: false, ms: Date.now() - started };
   }
   await browser.storage.local.set({ lastLookup: { ...report, at: Date.now() } });
@@ -109,7 +109,23 @@ async function noteActivity(site) {
   await syncToApp();
 }
 
-async function checkPage(urlString) {
+async function setTabIcon(tabId, id) {
+  const { path, title } = iconFor(id, browser.runtime.getManifest());
+  await Promise.all([browser.action.setIcon({ tabId, path }), browser.action.setTitle({ tabId, title })]);
+}
+
+/*
+ * Grays the tab's icon for a page News lacks, unless the tab has moved on to
+ * another page. Query and fragment are ignored: sites often rewrite them in place.
+ */
+async function showMissing(tabId, url) {
+  if (tabId === undefined) return;
+  const page = (u) => { const { origin, pathname } = new URL(u); return origin + pathname; };
+  const tab = await browser.tabs.get(tabId);
+  if (tab.url && page(tab.url) === page(url)) await setTabIcon(tabId, null);
+}
+
+async function checkPage(urlString, tabId) {
   const url = new URL(urlString);
   const { sites } = await settings();
   const site = siteFor(url.hostname, sites);
@@ -117,6 +133,7 @@ async function checkPage(urlString) {
   if (!site || !sites[site] || !hasArticleSlug(url)) return null;
 
   const id = await lookup(urlString);
+  if (id === null) showMissing(tabId, urlString).catch(() => {});
   if (!id) return null;
 
   await pullFromApp();
@@ -166,7 +183,7 @@ async function setAuto(on) {
 }
 
 const handlers = {
-  checkPage: (m) => checkPage(m.url),
+  checkPage: (m, sender) => checkPage(m.url, sender.tab?.id),
   lookup: async (m) => ({ id: await lookup(m.url) }),
   open: (m) => openArticle(m.id),
   siteStatus: (m) => siteStatus(m.host),
@@ -179,6 +196,11 @@ const handlers = {
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const handler = handlers[message.action];
   if (!handler) return false;
-  Promise.resolve(handler(message)).then(sendResponse, (e) => sendResponse({ error: String(e) }));
+  Promise.resolve(handler(message, sender)).then(sendResponse, (e) => sendResponse({ error: String(e) }));
   return true;
+});
+
+// A new page starts with the normal icon; checkPage grays it if News lacks it.
+browser.tabs.onUpdated.addListener((tabId, change) => {
+  if (change.status === 'loading') setTabIcon(tabId, undefined).catch(() => {});
 });

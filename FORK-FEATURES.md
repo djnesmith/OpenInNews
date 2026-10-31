@@ -43,3 +43,14 @@ A site can be set to "button only": it stays on for lookups and the Open in News
 - Commits: the one that adds this entry (`git log -S autoOpens --oneline`)
 - Files: `Extension/Resources/autoopen.js`, `background.js`, `popup.html`, `popup.js`, `manifest.json`, `Chrome/sw.js`, `Extension/SafariWebExtensionHandler.swift`, `Shared/SharedStatus.swift`, `App/OpenInNewsApp.swift`, `test/autoopen.test.js` (fork-only)
 - Check: `node --test test/`. By hand: on wsj.com untick "Auto-open on this site"; an article shows the pill but News doesn't open. Add a site in the app's Button only list, then open an article there in Safari; News doesn't open.
+
+
+## 5. Gray toolbar icon when the article isn't in News
+
+On a turned-on site, an article page that Apple's index has no copy of gets a gray, faded toolbar icon with the tooltip "Not in Apple News", for that tab only. Everything else keeps the normal icon: found articles, pages still being looked up, failed lookups, section fronts, and sites that are off (they are never looked up). The icon resets to normal when the tab starts loading a new page.
+
+- A failed lookup (`owlResolve` threw) is now `undefined` in `background.js`, apart from a real miss (`null`), so a network error never shows gray.
+- `icons/gray-{16,32,48}.png` are grayscale copies of the normal icons at 55% opacity; `scripts/make-icons.swift` does not make them.
+- Commits: the one that adds this entry (`git log -S NOT_IN_NEWS_ICON --oneline`)
+- Files: `Extension/Resources/icon.js`, `icons/gray-*.png`, `background.js`, `manifest.json`, `Chrome/sw.js`, `test/icon.test.js`, `test/background-icon.test.js` (fork-only)
+- Check: `node --test test/`. By hand: turn nytimes.com on in the popup and open an article Apple's index doesn't have; the icon goes gray. (On 2026-10-31 https://www.nytimes.com/2026/10/31/world/middleeast/iran-war-israel-us-elections-trump-netanyahu.html was one.)
