@@ -54,3 +54,14 @@ On a turned-on site, an article page that Apple's index has no copy of gets a gr
 - Commits: the one that adds this entry (`git log -S NOT_IN_NEWS_ICON --oneline`)
 - Files: `Extension/Resources/icon.js`, `icons/gray-*.png`, `background.js`, `manifest.json`, `Chrome/sw.js`, `test/icon.test.js`, `test/background-icon.test.js` (fork-only)
 - Check: `node --test test/`. By hand: turn nytimes.com on in the popup and open an article Apple's index doesn't have; the icon goes gray. (On 2026-10-31 https://www.nytimes.com/2026/10/31/world/middleeast/iran-war-israel-us-elections-trump-netanyahu.html was one.)
+
+## 6. One click on the toolbar button opens the article
+
+On an article page News has, when it won't open by itself ("Open automatically" off, or the site is button-only), the toolbar button opens the article in News in one click instead of showing the popup. Option-click shows the popup (settings) there. If the click can't find the article (lookup failed, or the page changed in place), it shows the popup instead. Every other page keeps the popup: articles News lacks, failed lookups, section fronts, sites that are off, and articles that open automatically.
+
+- `checkPage` removes the tab's popup (`action.setPopup` with `''`), so a click fires `action.onClicked`, which opens the article the way the popup's Open in News button does. A new page load puts the popup back, as with the icon (#5).
+- Option-click: Safari passes the click's `modifiers` (MDN compat data: `OnClickData` since Safari 15.4, Chrome never). `showSettings` puts the popup back, calls `action.openPopup()` (Safari 16+), then removes it again. If `openPopup` fails, the popup stays, so the next click shows the settings.
+- With the popup gone, settings for that site are still reachable: Option-click (Mac), the popup on any other page of the site (e.g. its homepage), and the app (button-only sites). On iOS and in Chrome there is no Option-click.
+- Commits: the one that adds this entry (`git log -S showSettings --oneline`)
+- Files: `Extension/Resources/background.js`, `test/fake-browser.js`, `test/background-toolbar.test.js`, `test/background-icon.test.js` (fork-only)
+- Check: `node --test test/`. By hand: turn "Open automatically" off, open an article News has, click the toolbar button: News opens. Option-click: the popup shows. On the site's homepage the click shows the popup.

@@ -115,14 +115,25 @@ async function setTabIcon(tabId, id) {
 }
 
 /*
- * Grays the tab's icon for a page News lacks, unless the tab has moved on to
- * another page. Query and fragment are ignored: sites often rewrite them in place.
+ * Whether the tab still shows this page. Query and fragment are ignored: sites
+ * often rewrite them in place.
  */
-async function showMissing(tabId, url) {
-  if (tabId === undefined) return;
+async function stillOn(tabId, url) {
+  if (tabId === undefined) return false;
   const page = (u) => { const { origin, pathname } = new URL(u); return origin + pathname; };
   const tab = await browser.tabs.get(tabId);
-  if (tab.url && page(tab.url) === page(url)) await setTabIcon(tabId, null);
+  return Boolean(tab.url) && page(tab.url) === page(url);
+}
+
+/* With no popup, a click on the toolbar button fires action.onClicked instead. */
+async function setTabPopup(tabId, on) {
+  await browser.action.setPopup({ tabId, popup: on ? browser.runtime.getManifest().action.default_popup : '' });
+}
+
+/* Opens the article as the popup's Open in News button does. */
+async function openInTab(tab, id) {
+  const { opened } = await openArticle(id);
+  if (!opened) await browser.tabs.update(tab.id, { url: `applenewss:///${id}` });
 }
 
 async function checkPage(urlString, tabId) {
@@ -133,14 +144,17 @@ async function checkPage(urlString, tabId) {
   if (!site || !sites[site] || !hasArticleSlug(url)) return null;
 
   const id = await lookup(urlString);
-  if (id === null) showMissing(tabId, urlString).catch(() => {});
+  if (id === null && await stillOn(tabId, urlString).catch(() => false)) setTabIcon(tabId, null).catch(() => {});
   if (!id) return null;
 
   await pullFromApp();
   const current = await settings();
   const { opened } = current;
   const now = Date.now();
-  const openNow = autoOpens(current, site) && !(now - (opened[urlString] ?? 0) < COOLDOWN_MS);
+  const automatic = autoOpens(current, site);
+  const openNow = automatic && !(now - (opened[urlString] ?? 0) < COOLDOWN_MS);
+  // Not opening by itself: the toolbar button opens the article in one click.
+  if (!automatic && await stillOn(tabId, urlString).catch(() => false)) setTabPopup(tabId, false).catch(() => {});
   if (openNow) {
     const recent = Object.fromEntries(Object.entries(opened).filter(([, t]) => now - t < COOLDOWN_MS));
     await browser.storage.local.set({ opened: { ...recent, [urlString]: now } });
@@ -200,7 +214,26 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
-// A new page starts with the normal icon; checkPage grays it if News lacks it.
+// A new page starts with the normal icon and the popup; checkPage changes them.
 browser.tabs.onUpdated.addListener((tabId, change) => {
-  if (change.status === 'loading') setTabIcon(tabId, undefined).catch(() => {});
+  if (change.status !== 'loading') return;
+  setTabIcon(tabId, undefined).catch(() => {});
+  setTabPopup(tabId, true).catch(() => {});
+});
+
+/* Shows the settings popup once; if it can't open, the popup stays for the next click. */
+async function showSettings(tabId) {
+  await setTabPopup(tabId, true);
+  await browser.action.openPopup();
+  await setTabPopup(tabId, false);
+}
+
+// Only fires on a tab whose popup checkPage removed. Option-click shows the settings.
+browser.action.onClicked.addListener(async (tab, info) => {
+  if (info?.modifiers?.includes('Alt')) return showSettings(tab.id);
+  const id = await lookup(tab.url);
+  if (id) return openInTab(tab, id);
+  // The article can't be found now (lookup failed, or the page changed): show the settings.
+  await setTabPopup(tab.id, true);
+  await browser.action.openPopup();
 });
