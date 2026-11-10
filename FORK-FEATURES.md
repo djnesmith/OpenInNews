@@ -8,10 +8,10 @@ Tests: `node --test test/`. Build a plain Release Mac app (without upstream's `N
 
 ```sh
 xcodegen generate
-xcodebuild -project OpenInNews.xcodeproj -scheme OpenInNewsMac -configuration Release -destination 'platform=macOS' -derivedDataPath build/dd build
+xcodebuild -project OpenInNews.xcodeproj -scheme OpenInNewsMac -configuration Release -destination 'platform=macOS' -derivedDataPath build/dd.noindex build
 ```
 
-Copy `build/dd/Build/Products/Release/Open in News.app` to `~/Applications`, open it once, then tick Auto Open in News in Safari › Settings › Extensions. Chrome: `./scripts/build-chrome.sh`, load `build/chrome` unpacked.
+Copy `build/dd.noindex/Build/Products/Release/Open in News.app` to `~/Applications`, open it once, then tick Auto Open in News in Safari › Settings › Extensions. Chrome: `./scripts/build-chrome.sh`, load `build/chrome` unpacked.
 
 ## 1. Signed with David's team
 
@@ -78,3 +78,10 @@ Sites on/off, global "Open automatically" and button-only sites sync across Mac,
 - Commits: the one that adds this entry (`git log -S SettingsSync --oneline`)
 - Files: `project.yml`, `Shared/SettingsSync.swift`, `Shared/SharedStatus.swift`, `Extension/SafariWebExtensionHandler.swift`, `App/OpenInNewsApp.swift`, `Extension/Resources/sync.js`, `background.js`, `manifest.json`, `Chrome/sw.js`, `test/sync.test.js`, `test/SettingsSyncTests.swift` (fork-only)
 - Check: `node --test test/` and `swiftc -parse-as-library Shared/SettingsSync.swift test/SettingsSyncTests.swift -o build/sync-tests && build/sync-tests`. By hand: untick a site on the Mac; within a minute or so its iPhone app shows the change, and Safari on the iPhone applies it at the next article. Turn the switch off on the iPhone, change a setting there, turn it back on; the change reaches the Mac.
+
+## 7. Build output kept out of Spotlight
+
+Builds go to `build/dd.noindex` instead of `build/dd`. Spotlight skips `*.noindex` folders, so the built app does not show up in Alfred or Spotlight next to the installed one.
+
+- Files: `scripts/install-mac.sh`, this file
+- Check: `./scripts/install-mac.sh`, then `mdfind "kMDItemCFBundleIdentifier == 'org.ajdn.AutoOpenInNews'"` lists only the installed app.

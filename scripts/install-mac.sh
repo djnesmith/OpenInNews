@@ -11,11 +11,11 @@ cd "$ROOT"
 xcodegen generate --quiet
 # A build you install yourself sends News's request headers; see OWLResolver.swift.
 xcodebuild -project OpenInNews.xcodeproj -scheme OpenInNewsMac -configuration Release \
-  -destination 'platform=macOS' -derivedDataPath build/dd \
+  -destination 'platform=macOS' -derivedDataPath build/dd.noindex \
   SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) NEWS_CLIENT_HEADERS' build \
   | grep -E 'error:|BUILD (SUCCEEDED|FAILED)'
 
-BUILT="build/dd/Build/Products/Release/Open in News.app"
+BUILT="build/dd.noindex/Build/Products/Release/Open in News.app"
 DEST="/Applications"
 [[ -w "$DEST" ]] || DEST="$HOME/Applications"
 mkdir -p "$DEST"
@@ -25,7 +25,7 @@ cp -R "$BUILT" "$DEST/"
 # Xcode registers every app it builds, which would show Safari a second copy
 # of the extension. Keep only the installed one.
 LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
-"$LSREGISTER" -u "$ROOT/build/dd/Build/Products/Debug/Open in News.app" 2>/dev/null || true
+"$LSREGISTER" -u "$ROOT/build/dd.noindex/Build/Products/Debug/Open in News.app" 2>/dev/null || true
 "$LSREGISTER" -u "$ROOT/$BUILT" 2>/dev/null || true
 "$LSREGISTER" -f "$DEST/Open in News.app"
 
