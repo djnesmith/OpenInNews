@@ -2,7 +2,7 @@
 
 Read this before merging upstream. Every item must still work after the merge.
 
-Branch: `main`. Base: `upstream/main` (narenh/OpenInNews), last merged at `6f50c87` (tag `v1.0`).
+Branch: `main`. Base: `upstream/main` (narenh/OpenInNews), last merged at `7568306` (Build 12).
 
 Tests: `node --test test/`. Build a plain Release Mac app (without upstream's `NEWS_CLIENT_HEADERS` flag, which `scripts/install-mac.sh` turns on):
 

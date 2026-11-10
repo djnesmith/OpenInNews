@@ -1,4 +1,5 @@
 // node --test test/
+// The toolbar icon, driven through test/fake-browser.js.
 const test = require('node:test');
 const assert = require('node:assert');
 const { load } = require('./fake-browser.js');
