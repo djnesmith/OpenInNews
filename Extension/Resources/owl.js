@@ -104,7 +104,7 @@ async function owlLookupFull(path, hash) {
  * over does. That's about a tenth of the bytes of the whole file.
  */
 const OWL_WINDOW = 48 * 1024;
-let owlSizeGuess = 531000; // bucket files run 518–544 KB; refined by each response
+let owlSizeGuess = 531000; // bucket files run 518-544 KB; refined by each response
 
 async function owlFetchRange(path, start, end) {
   const res = await fetch(OWL_BASE + path, { headers: { Range: `bytes=${start}-${end}` } });
