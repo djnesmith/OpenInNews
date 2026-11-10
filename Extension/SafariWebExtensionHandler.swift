@@ -28,12 +28,20 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
             if let state = message["state"] {
                 SharedStatus.save(state)
             }
-            Self.reply(context, [:])
+            Self.reply(context, Self.appManual())
+        case "pull":
+            Self.reply(context, Self.appManual())
         case "open":
             Self.reply(context, ["opened": open(articleID: message["id"] as? String)])
         default:
             Self.reply(context, [:])
         }
+    }
+
+    /// The app's button-only sites; background.js keeps them if they're newer.
+    private static func appManual() -> [String: Any] {
+        guard let manual = SharedStatus.loadManual() else { return [:] }
+        return ["manual": manual.sites, "manualAt": manual.at]
     }
 
     private static func reply(_ context: NSExtensionContext, _ message: [String: Any]) {
