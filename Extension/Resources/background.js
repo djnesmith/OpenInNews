@@ -177,6 +177,12 @@ async function checkPage(urlString, tabId) {
   return { id, openNow };
 }
 
+async function siteIsOn(urlString) {
+  const { sites } = await settings();
+  const site = siteFor(new URL(urlString).hostname, sites);
+  return Boolean(site && sites[site]);
+}
+
 /* Whether this page should be one-click, decided as checkPage does: an article News has that won't open by itself. */
 async function opensOnClick(urlString) {
   const url = new URL(urlString);
@@ -261,9 +267,10 @@ async function showSettings(tab, { oneClick = false } = {}) {
 
 // Only fires on a tab whose popup checkPage removed.
 browser.action.onClicked.addListener(async (tab) => {
-  const id = await lookup(tab.url);
+  // The site may have been turned off since checkPage.
+  const id = await siteIsOn(tab.url).catch(() => false) && await lookup(tab.url);
   if (id) return openInTab(tab, id);
-  // The article can't be found now (lookup failed, or the page changed).
+  // The site is off, or the article can't be found now (lookup failed, or the page changed).
   return showSettings(tab);
 });
 

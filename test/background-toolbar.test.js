@@ -131,6 +131,36 @@ test('a click when the article cannot be found now shows the settings', async ()
   assert.strictEqual(b.navigated[1], undefined);
 });
 
+test('a click after the site was turned off shows the settings, not News', async () => {
+  const b = load(found);
+  await b.message({ action: 'setAuto', on: false });
+  await b.visit(1, ARTICLE);
+  assert.strictEqual(b.popups[1], '');
+  await b.message({ action: 'setSite', site: 'wsj.com', on: false });
+  assert.strictEqual(await b.click(1), null);
+  assert.strictEqual(b.navigated[1], undefined);
+  assert.strictEqual(b.popupsOpened(), 1);
+});
+
+test('a click on a tab with no url shows the settings', async () => {
+  const b = load(found);
+  await b.message({ action: 'setAuto', on: false });
+  await b.visit(1, ARTICLE);
+  await b.navigate(1, undefined);
+  assert.strictEqual(await b.click(1), null);
+  assert.strictEqual(b.navigated[1], undefined);
+  assert.strictEqual(b.popupsOpened(), 1);
+});
+
+test('a click after auto-open was turned back on still opens the article', async () => {
+  const b = load(found);
+  await b.message({ action: 'setAuto', on: false });
+  await b.visit(1, ARTICLE);
+  await b.message({ action: 'setAuto', on: true });
+  assert.strictEqual(await b.click(1), null);
+  assert.strictEqual(b.navigated[1], 'applenewss:///A1');
+});
+
 test('a menu setup error stays inside the menu setup; the background loads and clicks work', async () => {
   for (const menuError of [new Error('create'), 'sync']) {
     const b = load(found, { menuError });
