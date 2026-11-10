@@ -1,44 +1,9 @@
 // node --test test/
-// Runs the real background.js against a fake browser, with the lookup stubbed.
+// The toolbar icon, driven through test/fake-browser.js.
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('node:fs');
-const vm = require('node:vm');
-const R = `${__dirname}/../Extension/Resources/`;
+const { load } = require('./fake-browser.js');
 const ARTICLE = 'https://www.wsj.com/politics/some-long-article-slug-here';
-
-function load(owlResolve) {
-  const tabs = {}, icons = {}, store = {};
-  let onMessage, onUpdated;
-  const browser = {
-    runtime: {
-      getURL: () => 'chrome-extension://x/',
-      getManifest: () => JSON.parse(fs.readFileSync(R + 'manifest.json', 'utf8')),
-      onMessage: { addListener: (f) => { onMessage = f; } }
-    },
-    storage: { local: { get: async (keys) => Object.fromEntries(keys.filter((k) => k in store).map((k) => [k, store[k]])), set: async (o) => Object.assign(store, o) } },
-    tabs: { get: async (id) => (id in tabs ? { id, url: tabs[id] } : Promise.reject(new Error('no tab'))), onUpdated: { addListener: (f) => { onUpdated = f; } } },
-    action: {
-      setIcon: async ({ tabId, path }) => { icons[tabId] = { ...icons[tabId], gray: path[16].includes('gray') }; },
-      setTitle: async ({ tabId, title }) => { icons[tabId] = { ...icons[tabId], title }; }
-    }
-  };
-  const ctx = vm.createContext({ browser, console, URL, Date, Promise, Object, Map, Boolean, String, JSON });
-  ctx.self = ctx;
-  for (const f of ['sites.js', 'autoopen.js', 'icon.js', 'background.js']) vm.runInContext(fs.readFileSync(R + f, 'utf8'), ctx);
-  ctx.owlResolve = owlResolve;
-  ctx.owlLastLookup = {};
-  const settle = () => new Promise((r) => setTimeout(r, 10));
-  return {
-    icons,
-    async visit(tabId, url, { tabUrl = url } = {}) {
-      if (tabUrl) { tabs[tabId] = tabUrl; onUpdated(tabId, { status: 'loading' }); }
-      await new Promise((res) => onMessage({ action: 'checkPage', url }, { tab: { id: tabId } }, res));
-      await settle();
-    },
-    async navigate(tabId, url) { tabs[tabId] = url; onUpdated(tabId, { status: 'loading' }); await settle(); }
-  };
-}
 
 test('a miss grays the tab with the tooltip', async () => {
   const b = load(async () => null);
